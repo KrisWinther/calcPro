@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">calcPro</string>
+    <string name="hint_enter_number">Введите число</string>
+    <string name="btn_convert">Перевести</string>
+    <string name="btn_go_calculator">Калькулятор</string>
+    <string name="label_result">Результат</string>
+    <string name="label_from">Из системы</string>
+    <string name="label_to">В систему</string>
+    <string name="copy_success">Скопировано!</string>
+    <string name="error_invalid">Недопустимый символ для данной системы</string>
+    <string name="error_empty">Введите число</string>
+    <string name="error_div_zero">Деление на ноль!</string>
+    <string name="calc_title">Калькулятор</string>
+    <string name="label_base">Система счисления</string>
+    <string-array name="bases">
+        <item>BIN (2)</item>
+        <item>OCT (8)</item>
+        <item>DEC (10)</item>
+        <item>HEX (16)</item>
+    </string-array>
+</resources>
