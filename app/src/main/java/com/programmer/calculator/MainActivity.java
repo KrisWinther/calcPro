@@ -51,8 +51,8 @@ public class MainActivity extends AppCompatActivity {
         TextView tvInfo = findViewById(R.id.tvInfo);
 
         tvInfo.setOnLongClickListener(v ->{
-                copyInfoToClipboard();
-                return true;
+            copyInfoToClipboard();
+            return true;
         });
     }
 
@@ -132,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
                 hint = "Например: 1F (шестнадцатеричное)";
                 break;
             default:
-                hint = "Например: 42 (десятичное)";
+                hint = "Например: 42 или 3.14 (десятичное)";
                 break;
         }
         tilInput.setHint(hint);
@@ -173,9 +173,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
         try {
+            long decimalValue;
 
-            // Parse числа базовой СС в Long
-            long decimalValue = Long.parseLong(input, fromRadix);
+            if (fromRadix == 10 && input.contains(".")) {
+                // Десятичное число с дробной частью — округляем до целого
+                double doubleVal = Double.parseDouble(input);
+                decimalValue = Math.round(doubleVal);
+            } else {
+                // Parse числа базовой СС в Long
+                decimalValue = Long.parseLong(input, fromRadix);
+            }
 
             // Перевод в другую СС
             String result = Long.toString(decimalValue, toRadix).toUpperCase();
@@ -189,6 +196,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Листы для допустимых символов для каждой СС
+    // Для DEC допускается также одна десятичная точка (".")
     private boolean isValidForBase(String input, int radix) {
         String validChars;
         switch (radix) {
@@ -199,13 +207,23 @@ public class MainActivity extends AppCompatActivity {
                 validChars = "01234567"; // OCT
                 break;
             case 10:
-                validChars = "0123456789"; // DEC
+                validChars = "0123456789."; // DEC (точка допустима)
                 break;
             case 16:
                 validChars = "0123456789ABCDEF"; // HEX
                 break;
             default:
                 return false;
+        }
+        // Для DEC: допускается не более одной точки, и не в начале строки
+        if (radix == 10) {
+            int dotCount = 0;
+            for (char c : input.toCharArray()) {
+                if (c == '.') dotCount++;
+                if (validChars.indexOf(c) < 0) return false;
+            }
+            if (dotCount > 1) return false;
+            return !input.startsWith(".");
         }
         for (char c : input.toCharArray()) {
             if (validChars.indexOf(c) < 0)
