@@ -11,6 +11,9 @@ import android.widget.TextView;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.button.MaterialButton;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 
 public class CalculatorActivity extends AppCompatActivity {
 
@@ -44,10 +47,18 @@ public class CalculatorActivity extends AppCompatActivity {
     private boolean freshInput = true;
 
     // Состояние десятичной точки
+    // Периодические дроби обрезаются до 10 знаков после запятой
+    private static final int FRACTION_DIGITS = 10;
+
     // Флаг: текущий ввод содержит десятичную точку (только DEC)
     private boolean hasDecimalPoint = false;
+
+    // Точное значение операнда A (BigDecimal для корректного перевода между СС)
+    private BigDecimal decimalOperandAExact = BigDecimal.ZERO;
+
     // Вещественный операнд A (используется вместо operandA при вещественном режиме)
     private double decimalOperandA = 0.0;
+
     // Текущий вещественный ввод (полная строка с точкой, напр. "3.14")
     private String decimalInput = "0";
 
@@ -56,6 +67,8 @@ public class CalculatorActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        ThemeManager.applyTheme(this);
 
         EdgeToEdge.enable(this);
 
@@ -89,12 +102,30 @@ public class CalculatorActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
                 int newRadix = RADIX[pos];
                 if (newRadix == currentRadix) return;
-                // При смене СС — сбрасываем десятичную точку, округляем до целого
+
+                // При смене СС -> перевод через BigDecimal без потери точности
                 if (hasDecimalPoint) {
-                    long rounded = Math.round(parseDecimalInput());
-                    currentInput = encode(rounded & currentBitMask, newRadix);
-                    hasDecimalPoint = false;
-                    decimalInput = "0";
+
+                    // Paerse текущего дробного ввода в BigDecimal
+                    BigDecimal exact = parseBigDecimal(decimalInput, currentRadix);
+                    currentRadix = newRadix;
+                    if (newRadix == 10) {
+
+                        // В DEC показ дроби
+                        String encoded = encodeBigDecimal(exact);
+                        decimalInput = encoded;
+                        hasDecimalPoint = encoded.contains(".");
+                        currentInput = encoded.contains(".")
+                                ? encoded.substring(0, encoded.indexOf('.'))
+                                : encoded;
+                    } else {
+
+                        // В BIN/OCT/HEX дробная часть отбрасывается
+                        long intPart = exact.longValue() & currentBitMask;
+                        currentInput = encode(intPart);
+                        hasDecimalPoint = false;
+                        decimalInput = "0";
+                    }
                 } else {
                     try {
                         long currentVal = Long.parseLong(currentInput, currentRadix);
@@ -104,15 +135,16 @@ public class CalculatorActivity extends AppCompatActivity {
                         resetAll();
                         return;
                     }
+                    currentRadix = newRadix;
                 }
-                currentRadix = newRadix;
                 if (!pendingOp.isEmpty()) updateExpressionRow();
                 refreshDisplay();
                 updateDigitButtonAvailability();
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
     }
 
@@ -153,7 +185,8 @@ public class CalculatorActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
     }
 
@@ -290,7 +323,8 @@ public class CalculatorActivity extends AppCompatActivity {
         try {
             long val = Long.parseUnsignedLong(currentInput, currentRadix);
             currentInput = encode(val & currentBitMask);
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException ignored) {
+        }
         refreshDisplay();
     }
 
@@ -300,15 +334,19 @@ public class CalculatorActivity extends AppCompatActivity {
 
         if (hasDecimalPoint) {
             decimalOperandA = parseDecimalInput();
+            decimalOperandAExact = parseBigDecimal(decimalInput, currentRadix);
+
             // operandA — целая часть, используется только для нецелых операций
             operandA = Math.round(decimalOperandA);
         } else {
             try {
                 operandA = Long.parseLong(currentInput, currentRadix) & currentBitMask;
                 decimalOperandA = operandA;
+                decimalOperandAExact = BigDecimal.valueOf(operandA);
             } catch (NumberFormatException e) {
                 operandA = 0L;
                 decimalOperandA = 0.0;
+                decimalOperandAExact = BigDecimal.ZERO;
             }
         }
 
@@ -343,8 +381,8 @@ public class CalculatorActivity extends AppCompatActivity {
         }
 
         // Использовать double-арифметику если:
-        // — хотя бы один из операндов вещественный, И текущая СС = DEC
-        // — операция деления в DEC (результат не обязан быть целым)
+        // - хотя бы один из операндов вещественный, И текущая СС = DEC
+        // - операция деления в DEC (результат не обязан быть целым)
         boolean isDecMode = (currentRadix == 10);
         boolean operandsAreDecimal = hasDecimalPoint || decimalInput.contains(".");
         boolean useDouble = isDecMode && (operandsAreDecimal || pendingOp.equals("/"));
@@ -485,6 +523,7 @@ public class CalculatorActivity extends AppCompatActivity {
         if (hasDecimalPoint) {
             if (decimalInput.length() > 1) {
                 decimalInput = decimalInput.substring(0, decimalInput.length() - 1);
+
                 // Если стёрли точку — выходим из вещественного режима
                 if (!decimalInput.contains(".")) {
                     hasDecimalPoint = false;
@@ -529,7 +568,8 @@ public class CalculatorActivity extends AppCompatActivity {
             long val = Long.parseLong(currentInput, currentRadix);
             currentInput = encode((-val) & currentBitMask);
             refreshDisplay();
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException ignored) {
+        }
     }
 
     // Сбросить всё
@@ -537,6 +577,7 @@ public class CalculatorActivity extends AppCompatActivity {
         currentInput = "0";
         operandA = 0L;
         decimalOperandA = 0.0;
+        decimalOperandAExact = BigDecimal.ZERO;
         pendingOp = "";
         freshInput = true;
         hasDecimalPoint = false;
@@ -578,7 +619,8 @@ public class CalculatorActivity extends AppCompatActivity {
     private void updateExpressionRow() {
         if (!pendingOp.isEmpty()) {
             String aStr = formatDecimalForExpr(decimalOperandA);
-            // Если operandA целый и не из вещественного режима — показываем в текущей СС
+
+            // Если operandA целый и не из вещественного режима -> показываем в текущей СС
             if (decimalOperandA == Math.floor(decimalOperandA)) {
                 aStr = encode(operandA);
             }
@@ -593,6 +635,7 @@ public class CalculatorActivity extends AppCompatActivity {
         currentInput = "0";
         operandA = 0L;
         decimalOperandA = 0.0;
+        decimalOperandAExact = BigDecimal.ZERO;
         pendingOp = "";
         freshInput = true;
         hasDecimalPoint = false;
@@ -615,20 +658,25 @@ public class CalculatorActivity extends AppCompatActivity {
         if (digit == null || digit.isEmpty()) return false;
         char c = digit.toUpperCase().charAt(0);
         switch (radix) {
-            case 2:  return c == '0' || c == '1';
-            case 8:  return c >= '0' && c <= '7';
-            case 10: return c >= '0' && c <= '9';
-            case 16: return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
-            default: return false;
+            case 2:
+                return c == '0' || c == '1';
+            case 8:
+                return c >= '0' && c <= '7';
+            case 10:
+                return c >= '0' && c <= '9';
+            case 16:
+                return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
+            default:
+                return false;
         }
     }
 
-    /** Кодирует long в строку в текущей СС. */
+    // Кодирует Long -> String в текущей СС.
     private String encode(long val) {
         return encode(val, currentRadix);
     }
 
-    /** Кодирует long в строку в указанной СС. */
+    // Кодирует Long -> String в целевой СС.
     private String encode(long val, int radix) {
         if (!signedMode && val < 0) {
             return Long.toUnsignedString(val, radix).toUpperCase();
@@ -638,14 +686,22 @@ public class CalculatorActivity extends AppCompatActivity {
 
     private String opSymbol(String op) {
         switch (op) {
-            case "+":   return "+";
-            case "-":   return "−";
-            case "*":   return "×";
-            case "/":   return "÷";
-            case "%":   return "%";
-            case "AND": return "AND";
-            case "OR":  return "OR";
-            default:    return op;
+            case "+":
+                return "+";
+            case "-":
+                return "−";
+            case "*":
+                return "×";
+            case "/":
+                return "÷";
+            case "%":
+                return "%";
+            case "AND":
+                return "AND";
+            case "OR":
+                return "OR";
+            default:
+                return op;
         }
     }
 
@@ -673,5 +729,61 @@ public class CalculatorActivity extends AppCompatActivity {
             btnDot.setEnabled(currentRadix == 10);
             btnDot.setAlpha(currentRadix == 10 ? 1.0f : 0.30f);
         }
+    }
+
+    // Parse строки в любой СС (включая дробную часть) в BigDecimal
+    // Используется для точного перевода дробей между системами счисления
+    private BigDecimal parseBigDecimal(String input, int radix) {
+        if (input == null || input.isEmpty()) return BigDecimal.ZERO;
+        boolean negative = input.startsWith("-");
+        if (negative) input = input.substring(1);
+
+        String[] parts = input.split("\\.");
+        BigDecimal result = new BigDecimal(
+                new BigInteger(parts[0].isEmpty() ? "0" : parts[0], radix));
+
+        if (parts.length >= 2 && !parts[1].isEmpty()) {
+            BigDecimal base = BigDecimal.valueOf(radix);
+            BigDecimal divisor = base;
+            for (char c : parts[1].toCharArray()) {
+                int digit = Character.digit(c, radix);
+                if (digit < 0) break;
+                result = result.add(
+                        BigDecimal.valueOf(digit)
+                                .divide(divisor, 20, RoundingMode.HALF_UP));
+                divisor = divisor.multiply(base);
+            }
+        }
+        return negative ? result.negate() : result;
+    }
+
+    // Кодирует BigDecimal в строку в десятичной СС
+    // Периодические дроби обрезаются до FRACTION_DIGITS
+    private String encodeBigDecimal(BigDecimal value) {
+        boolean negative = value.compareTo(BigDecimal.ZERO) < 0;
+        value = value.abs();
+
+        BigDecimal[] split = value.divideAndRemainder(BigDecimal.ONE);
+        String intStr = split[0].toBigInteger().toString(10);
+        BigDecimal fracPart = split[1];
+
+        if (fracPart.compareTo(BigDecimal.ZERO) == 0) {
+            return (negative ? "-" : "") + intStr;
+        }
+
+        StringBuilder frac = new StringBuilder(".");
+        BigDecimal base = BigDecimal.valueOf(10);
+
+        // Обрезка периодической дроби до 10 знаков после запятой
+        int limit = FRACTION_DIGITS;
+
+        while (fracPart.compareTo(BigDecimal.ZERO) != 0 && limit-- > 0) {
+            fracPart = fracPart.multiply(base);
+            int digit = fracPart.intValue();
+            frac.append(digit);
+            fracPart = fracPart.subtract(BigDecimal.valueOf(digit));
+        }
+
+        return (negative ? "-" : "") + intStr + frac;
     }
 }

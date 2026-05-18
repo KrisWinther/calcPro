@@ -1,6 +1,5 @@
 package com.programmer.calculator;
 
-import android.annotation.SuppressLint;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -25,7 +24,7 @@ public class MainActivity extends AppCompatActivity {
     private Spinner spinnerFrom, spinnerTo;
     private TextInputEditText etInput;
     private TextInputLayout tilInput;
-    private TextView tvResult, tvError, tvCopyFeedback;
+    private TextView tvResult, tvError, tvCopyFeedback, btnGoSettings;
     private MaterialButton btnConvert, btnGoCalculator;
     private View resultContainer;
     private static final int[] RADIX = {2, 8, 10, 16};
@@ -34,12 +33,13 @@ public class MainActivity extends AppCompatActivity {
     private int toRadix = 10;
     private String lastResult = "";
 
+
     // Главный метод onCreate
-    @SuppressLint("MissingInflatedId")
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
+        ThemeManager.applyTheme(this);
         EdgeToEdge.enable(this); // Для Android 12 и ранее
 
         setContentView(R.layout.activity_main);
@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
         tvCopyFeedback = findViewById(R.id.tvCopyFeedback);
         btnConvert = findViewById(R.id.btnConvert);
         btnGoCalculator = findViewById(R.id.btnGoCalculator);
+        btnGoSettings = findViewById(R.id.btnGoSettings);
         resultContainer = findViewById(R.id.resultContainer);
     }
 
@@ -150,6 +151,11 @@ public class MainActivity extends AppCompatActivity {
 
         btnGoCalculator.setOnClickListener(v -> {
             Intent intent = new Intent(this, CalculatorActivity.class);
+            startActivity(intent);
+        });
+
+        btnGoSettings.setOnClickListener(v -> {
+            Intent intent = new Intent(this, SettingsActivity.class);
             startActivity(intent);
         });
     }
